@@ -7,34 +7,6 @@ const mongoose = require('mongoose');
 
 const socketIO = require('socket.io');
 
-/* const mongoURI =
-  'mongodb+srv://roannamo:Roannamo123_@clusteruser.odhhlrs.mongodb.net/';
-mongoose
-  .connect(mongoURI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    dbName: 'shorturl',
-  })
-  .then(() => {
-    console.log('Conectado a MongoDB');
-  })
-  .catch((err) => {
-    console.error('Error al conectar a MongoDB', err);
-  });
-
-const locationSchema = new mongoose.Schema({
-  id: mongoose.Types.ObjectId,
-  userLocation: String,
-  latitude: Number,
-  longitude: Number,
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-const Location = mongoose.model('Location', locationSchema); */
-
 const app = express();
 app.use(cors());
 app.use(morgan('dev'));
@@ -42,8 +14,22 @@ app.use(morgan('dev'));
 const httpServer = http.createServer(app);
 const io = socketIO(httpServer);
 
+const INACTIVITY_TIMEOUT = 300000;
+
 io.on('connection', (socket) => {
   console.log('Nuevo cliente conectado');
+
+  let inactivityTimer;
+
+  const resetInactivityTimer = () => {
+    if (inactivityTimer) {
+      clearTimeout(inactivityTimer);
+    }
+    inactivityTimer = setTimeout(() => {
+      console.log('Desconectando por inactividad:', socket.id);
+      socket.disconnect();
+    }, INACTIVITY_TIMEOUT);
+  };
 
   socket.on('updateLocation', async (data) => {
     console.log(data);
@@ -52,7 +38,12 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('Cliente desconectado');
+    if (inactivityTimer) {
+      clearTimeout(inactivityTimer);
+    }
   });
+
+  resetInactivityTimer();
 });
 
 httpServer.listen(process.env.PORT || 3000, () => {
