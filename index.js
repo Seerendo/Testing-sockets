@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const http = require('node:http');
-const mongoose = require('mongoose');
 
 const socketIO = require('socket.io');
 
@@ -14,22 +13,12 @@ app.use(morgan('dev'));
 const httpServer = http.createServer(app);
 const io = socketIO(httpServer);
 
-const INACTIVITY_TIMEOUT = 300000;
-
 io.on('connection', (socket) => {
   console.log('Nuevo cliente conectado');
 
-  let inactivityTimer;
-
-  const resetInactivityTimer = () => {
-    if (inactivityTimer) {
-      clearTimeout(inactivityTimer);
-    }
-    inactivityTimer = setTimeout(() => {
-      console.log('Desconectando por inactividad:', socket.id);
-      socket.disconnect();
-    }, INACTIVITY_TIMEOUT);
-  };
+  socket.on('identify', (userId) => {
+    socket.userId = userId;
+  });
 
   socket.on('updateLocation', async (data) => {
     console.log(data);
@@ -37,13 +26,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log('Cliente desconectado');
-    if (inactivityTimer) {
-      clearTimeout(inactivityTimer);
+    if (socket.userId) {
+      io.emit('userDisconnected', { userId: socket.userId });
     }
+    console.log('Cliente desconectado');
   });
-
-  resetInactivityTimer();
 });
 
 httpServer.listen(process.env.PORT || 3000, () => {
