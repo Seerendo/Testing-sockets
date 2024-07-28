@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -6,7 +7,7 @@ const mongoose = require('mongoose');
 
 const socketIO = require('socket.io');
 
-const mongoURI =
+/* const mongoURI =
   'mongodb+srv://roannamo:Roannamo123_@clusteruser.odhhlrs.mongodb.net/';
 mongoose
   .connect(mongoURI, {
@@ -32,7 +33,7 @@ const locationSchema = new mongoose.Schema({
   },
 });
 
-const Location = mongoose.model('Location', locationSchema);
+const Location = mongoose.model('Location', locationSchema); */
 
 const app = express();
 app.use(cors());
@@ -45,19 +46,8 @@ io.on('connection', (socket) => {
   console.log('Nuevo cliente conectado');
 
   socket.on('updateLocation', async (data) => {
-    const { userId, latitude, longitude } = data;
-    console.log(latitude);
-    console.log(longitude);
-
-    await Location.findOneAndUpdate(
-      { userLocation: userId },
-      { latitude, longitude, updatedAt: Date.now() },
-      { upsert: true, new: true }
-    );
-
-    const locations = await Location.find({ userLocation: { $ne: userId } });
-    console.log(locations);
-    io.emit('locations', locations);
+    console.log(data);
+    io.emit('locations', data);
   });
 
   socket.on('disconnect', () => {
@@ -65,6 +55,6 @@ io.on('connection', (socket) => {
   });
 });
 
-httpServer.listen(3000, () => {
+httpServer.listen(process.env.PORT || 3000, () => {
   console.log('Server running on PORT 3000');
 });
