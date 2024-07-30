@@ -18,13 +18,11 @@ const io = socketIO(httpServer, {
   },
 });
 
+// Almacenar temporalmente a los usuarios
 const users = {};
 
+// Formula para calcular la distancia
 const haversineDistance = (lat1, lon1, lat2, lon2) => {
-  console.log(lat1);
-  console.log(lat2);
-  console.log(lon1);
-  console.log(lon2);
   const R = 6371e3; // Radio de la Tierra en metros
   const φ1 = lat1 * (Math.PI / 180);
   const φ2 = lat2 * (Math.PI / 180);
@@ -37,24 +35,31 @@ const haversineDistance = (lat1, lon1, lat2, lon2) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   const distancia = R * c; // Distancia en metros
-  console.log(distancia);
   return distancia;
 };
 
 io.on('connection', (socket) => {
   console.log('Nuevo cliente conectado', socket.id);
 
+  // Guardiar la id del usuario
   socket.on('identify', (userId) => {
-    console.log(userId);
     socket.userId = userId;
-    users[userId] = { userId: userId, socketId: socket.id, location: null };
+    users[socket.userId] = {
+      userId: userId,
+      socketId: socket.id,
+      location: null,
+    };
   });
 
-  socket.on('updateLocation', async (data) => {
-    const { userId, latitude, longitude } = data;
+  // Actualizar ubicaciones de los usuarios y emitir a los demas
+  socket.on('updateLocation', (data) => {
+    const { latitude, longitude } = data;
+
+    console.log(latitude, longitude);
 
     users[socket.userId].location = { latitude, longitude };
 
+    // Verificar la distancia de los usuarios
     const nearbyUsers = Object.values(users).filter((user) => {
       if (!user.location || user.socketId === socket.id) return false;
 
@@ -65,12 +70,15 @@ io.on('connection', (socket) => {
         longitude
       );
 
+      // Distancia en metros (2000 -> 2km)
       return distance <= 2000;
     });
 
+    // Emitir las locaciones de los usuarios cercanos
     io.emit('locations', nearbyUsers);
   });
 
+  // Desconectar el usuario y borrar su id
   socket.on('disconnect', () => {
     if (socket.userId) {
       delete users[socket.userId];
