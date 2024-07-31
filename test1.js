@@ -22,6 +22,7 @@ mongoose
   });
 
 const locationSchema = new mongoose.Schema({
+  id: mongoose.Types.ObjectId,
   userId: String,
   latitude: Number,
   longitude: Number,
@@ -46,6 +47,10 @@ const io = socketIO(httpServer, {
   },
 });
 
+// Almacenar temporalmente a los usuarios
+const users = {};
+
+// Formula para calcular la distancia
 const haversineDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371e3; // Radio de la Tierra en metros
   const φ1 = lat1 * (Math.PI / 180);
@@ -63,9 +68,10 @@ const haversineDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 io.on('connection', (socket) => {
-  console.log('Cliente conectado');
+  console.log('Nuevo cliente conectado', socket.id);
 
-  socket.on('listenLocations', async (data) => {
+  // Guardiar la id del usuario
+  socket.on('streamLocation', async (data) => {
     const { userId, latitude, longitude } = data;
     socket.userId = userId;
     await Location.findOneAndUpdate(
@@ -73,31 +79,48 @@ io.on('connection', (socket) => {
       { latitude, longitude, updatedAt: Date.now() },
       { upsert: true, new: true }
     );
+    const locations = await Location.find({ userId: { $ne: socket.userId } });
+    io.emit('locations', locations);
   });
 
-  socket.on('emitLocations', async (data) => {
+  // Actualizar ubicaciones de los usuarios y emitir a los demas
+  socket.on('updateLocation', async (data) => {
     const { userId, latitude, longitude } = data;
-    console.log(latitude, latitude);
-    const locations = await Location.find({ userId: { $ne: userId } });
-    const nearbyUsers = locations.filter((location) => {
-      if (!location.latitude || !location.longitude) return false;
+    /* const { latitude, longitude } = data;
+
+    console.log(latitude, longitude);
+
+    users[socket.userId].location = { latitude, longitude };
+
+    // Verificar la distancia de los usuarios
+    const nearbyUsers = Object.values(users).filter((user) => {
+      if (!user.location || user.socketId === socket.id) return false;
 
       const distance = haversineDistance(
-        location.latitude,
-        location.longitude,
+        user.location.latitude,
+        user.location.longitude,
         latitude,
         longitude
       );
 
       // Distancia en metros (2000 -> 2km)
       return distance <= 2000;
-    });
-    console.log(nearbyUsers);
-    io.emit('locations', nearbyUsers);
+    }); */
+    console.log('updateLocations');
+    const locations = await Location.find({ userId: { $ne: socket.id } });
+    console.log(locations);
+
+    // Emitir las locaciones de los usuarios cercanos
+    io.emit('locations', locations);
   });
 
+  // Desconectar el usuario y borrar su id
   socket.on('disconnect', async () => {
     await Location.findOneAndDelete({ userId: socket.userId });
+    /*  if (socket.userId) {
+      delete users[socket.userId];
+      io.emit('userDisconnected', { userId: socket.userId });
+    } */
     io.emit('userDisconnected', { userId: socket.userId });
     console.log('Cliente desconectado');
   });
